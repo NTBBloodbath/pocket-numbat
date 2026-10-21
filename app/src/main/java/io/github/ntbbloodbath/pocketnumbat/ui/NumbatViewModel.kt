@@ -1,8 +1,12 @@
 package io.github.ntbbloodbath.pocketnumbat.ui
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.ntbbloodbath.pocketnumbat.calc.ExchangeRates
 import io.github.ntbbloodbath.pocketnumbat.calc.NumbatEngine
+import io.github.ntbbloodbath.pocketnumbat.calc.NumbatNative
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,18 +35,22 @@ data class UiState(
     val isEvaluating: Boolean = false,
 )
 
-class NumbatViewModel : ViewModel() {
+class NumbatViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val engineDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val exchangeRates = ExchangeRates(File(application.filesDir, "ecb-rates.xml"))
     private var engine: NumbatEngine? = null
     private var nextId = 0L
 
     init {
         viewModelScope.launch {
             val created = try {
-                withContext(engineDispatcher) { NumbatEngine.create() }
+                withContext(engineDispatcher) {
+                    loadExchangeRates()
+                    NumbatEngine.create()
+                }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
                 _state.update {
@@ -120,6 +128,28 @@ class NumbatViewModel : ViewModel() {
             }
         }
         super.onCleared()
+    }
+
+    // shortcut: Numbat caches rates in a process-global OnceLock; refresh needs an app restart.
+    private fun loadExchangeRates() {
+        val rates = try {
+            exchangeRates.load()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        try {
+            NumbatNative.nativeSetExchangeRates(rates.xml)
+            if (rates.fromNetwork) {
+                exchangeRates.save(rates.xml)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Currency rates are optional; math and units still work.
+        }
     }
 
     private fun updateEntry(id: Long, transform: (HistoryEntry) -> HistoryEntry) {
