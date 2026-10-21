@@ -10,4 +10,12 @@
     <string name="empty_example">2 m + 30 cm</string>
     <string name="loading">Loading Numbat...</string>
     <string name="load_error">Numbat failed to load: %1$s</string>
+    <string name="help">Help</string>
+    <string name="examples_title">Examples</string>
+    <string name="examples_hint">Tap an example to put it in the input.</string>
+    <string name="examples_units">Units and conversions</string>
+    <string name="examples_currency">Currency</string>
+    <string name="examples_currency_note">Currency examples need exchange rates. The app fetches them when online.</string>
+    <string name="examples_variables">Variables</string>
+    <string name="examples_functions">Functions</string>
 </resources>

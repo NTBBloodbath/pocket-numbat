@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,9 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
@@ -31,6 +34,7 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -40,10 +44,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -72,6 +80,7 @@ private fun NumbatContent(
     onClear: () -> Unit,
 ) {
     val listState = rememberLazyListState()
+    var showExamples by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val copyText: (String) -> Unit = { text ->
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -93,6 +102,9 @@ private fun NumbatContent(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    TextButton(onClick = { showExamples = true }) {
+                        Text(stringResource(R.string.help))
+                    }
                     if (state.history.isNotEmpty()) {
                         TextButton(onClick = onClear) {
                             Text(stringResource(R.string.clear))
@@ -138,6 +150,16 @@ private fun NumbatContent(
                 onSubmit = onSubmit,
             )
         }
+    }
+
+    if (showExamples) {
+        ExamplesSheet(
+            onDismiss = { showExamples = false },
+            onExampleSelected = { expression ->
+                onInputChange(expression)
+                showExamples = false
+            },
+        )
     }
 }
 
@@ -319,5 +341,95 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+private data class ExampleGroup(
+    val titleRes: Int,
+    val examples: List<String>,
+    val noteRes: Int? = null,
+)
+
+private val exampleGroups = listOf(
+    ExampleGroup(
+        titleRes = R.string.examples_units,
+        examples = listOf(
+            "2 m + 30 cm",
+            "2 in to cm",
+            "100 km / 2 h -> km/h",
+        ),
+    ),
+    ExampleGroup(
+        titleRes = R.string.examples_currency,
+        examples = listOf(
+            "1 USD -> EUR",
+            "10 EUR -> USD",
+        ),
+        noteRes = R.string.examples_currency_note,
+    ),
+    ExampleGroup(
+        titleRes = R.string.examples_variables,
+        examples = listOf("let radius = 5 cm; circle_area(radius)"),
+    ),
+    ExampleGroup(
+        titleRes = R.string.examples_functions,
+        examples = listOf(
+            "sin(30 deg)",
+            "sqrt(2)",
+        ),
+    ),
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExamplesSheet(
+    onDismiss: () -> Unit,
+    onExampleSelected: (String) -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.examples_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.examples_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            exampleGroups.forEach { group ->
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    text = stringResource(group.titleRes),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                group.noteRes?.let { noteRes ->
+                    Text(
+                        text = stringResource(noteRes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                group.examples.forEach { example ->
+                    Text(
+                        text = example,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(role = Role.Button) { onExampleSelected(example) }
+                            .padding(vertical = 10.dp),
+                    )
+                }
+            }
+        }
     }
 }
