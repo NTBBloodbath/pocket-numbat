@@ -1,0 +1,25 @@
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
+
+# Android
+local.properties
+.android/
+
+# Gradle
+.gradle/
+build/
+
+# Rust
+rust/target/
+
+# Signing
+*.keystore
+key.properties
