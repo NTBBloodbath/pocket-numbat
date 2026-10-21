@@ -6,11 +6,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val androidNdkVersion = "28.2.13676358"
+
 android {
     namespace = "io.github.ntbbloodbath.pocketnumbat"
     compileSdk = 37
     buildToolsVersion = "37.0.0"
-    ndkVersion = "28.2.13676358"
+    ndkVersion = androidNdkVersion
 
     defaultConfig {
         applicationId = "io.github.ntbbloodbath.pocketnumbat"
@@ -56,9 +58,11 @@ val androidSdkDir = localProperties.getProperty("sdk.dir")
     ?: System.getenv("ANDROID_HOME")
     ?: throw GradleException("Set sdk.dir in local.properties or ANDROID_HOME")
 
-val androidNdkDir = localProperties.getProperty("ndk.dir")
+val androidNdkDir = rootProject.file("$androidSdkDir/ndk/$androidNdkVersion")
+    .takeIf { it.isDirectory }
+    ?.absolutePath
     ?: System.getenv("ANDROID_NDK_HOME")
-    ?: throw GradleException("Set ndk.dir in local.properties or ANDROID_NDK_HOME")
+    ?: throw GradleException("Android NDK $androidNdkVersion not found")
 
 val rustJniLibsDir = layout.buildDirectory.dir("rustJniLibs")
 
@@ -90,7 +94,13 @@ tasks.named("preBuild").configure {
     dependsOn(buildRust)
 }
 
-android.sourceSets["main"].jniLibs.srcDir(rustJniLibsDir.get().asFile)
+androidComponents {
+    onVariants { variant ->
+        variant.sources.jniLibs?.addStaticSourceDirectory(
+            rustJniLibsDir.get().asFile.absolutePath,
+        )
+    }
+}
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
