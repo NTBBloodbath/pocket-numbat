@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Pocket Numbat</string>
     <string name="hello_tagline">2 m + 30 cm</string>
+    <string name="native_loading">Loading Numbat...</string>
+    <string name="native_error">Native error: %1$s</string>
 </resources>

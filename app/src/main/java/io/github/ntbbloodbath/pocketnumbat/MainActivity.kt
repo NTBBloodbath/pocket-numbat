@@ -12,12 +12,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import io.github.ntbbloodbath.pocketnumbat.calc.NumbatEngine
 import io.github.ntbbloodbath.pocketnumbat.ui.theme.PocketNumbatTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,6 +43,22 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun HelloScreen(modifier: Modifier = Modifier) {
+    var output by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                NumbatEngine.create().use { engine ->
+                    engine.eval("2 m + 30 cm")
+                }
+            }
+        }
+
+        result.onSuccess { output = it }
+        result.onFailure { errorMessage = it.message ?: "unknown" }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -50,6 +74,14 @@ private fun HelloScreen(modifier: Modifier = Modifier) {
             text = stringResource(R.string.hello_tagline),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = when {
+                output != null -> output!!
+                errorMessage != null -> stringResource(R.string.native_error, errorMessage!!)
+                else -> stringResource(R.string.native_loading)
+            },
+            style = MaterialTheme.typography.titleMedium,
         )
     }
 }
