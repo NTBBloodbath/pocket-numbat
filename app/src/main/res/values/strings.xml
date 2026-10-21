@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Pocket Numbat</string>
-    <string name="hello_tagline">2 m + 30 cm</string>
-    <string name="native_loading">Loading Numbat...</string>
-    <string name="native_error">Native error: %1$s</string>
+    <string name="clear">Clear</string>
+    <string name="copy">Copy</string>
+    <string name="copied">Copied</string>
+    <string name="evaluate">Evaluate</string>
+    <string name="input_placeholder">Enter a Numbat expression</string>
+    <string name="empty_title">Type a Numbat expression to get started</string>
+    <string name="empty_example">2 m + 30 cm</string>
+    <string name="loading">Loading Numbat...</string>
+    <string name="load_error">Numbat failed to load: %1$s</string>
 </resources>
