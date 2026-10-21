@@ -1,0 +1,3 @@
+Initial MVP release.
+
+Native Numbat evaluation, unit-aware results, formatted diagnostics, history, copy and clear, and cached ECB exchange rates.

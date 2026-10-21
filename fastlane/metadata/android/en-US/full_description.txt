@@ -1,0 +1,7 @@
+Pocket Numbat is an unofficial, native Android client for the Numbat scientific calculator.
+
+It evaluates Numbat expressions locally using a Rust build of the Numbat engine. No WebView is involved in the calculation path. Units, physical constants, functions, and formatted error diagnostics work offline.
+
+Currency conversion uses the European Central Bank daily reference rates. The app fetches and caches them for offline use; all other math and units work without a network connection.
+
+Pocket Numbat is free software licensed under GPL-3.0-or-later. The Numbat engine is used under its MIT license.
