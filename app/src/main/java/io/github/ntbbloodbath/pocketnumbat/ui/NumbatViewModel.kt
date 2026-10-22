@@ -10,8 +10,10 @@ import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,12 +42,27 @@ class NumbatViewModel(application: Application) : AndroidViewModel(application) 
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val engineDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val persistDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val exchangeRates = ExchangeRates(File(application.filesDir, "ecb-rates.xml"))
+    private val sessionStore = SessionStore(application.noBackupFilesDir)
     private var engine: NumbatEngine? = null
     private var nextId = 0L
+    private var persistJob: Job? = null
+    private var sessionLoaded = false
 
     init {
         viewModelScope.launch {
+            val session = withContext(Dispatchers.IO) { sessionStore.load() }
+            nextId = session.history.size.toLong()
+            _state.update { current ->
+                current.copy(
+                    history = session.history,
+                    input = current.input.ifEmpty { session.draft },
+                )
+            }
+            sessionLoaded = true
+            persist()
+
             val created = try {
                 withContext(engineDispatcher) {
                     loadExchangeRates()
@@ -73,7 +90,9 @@ class NumbatViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun onInputChange(value: String) {
+        if (_state.value.input == value) return
         _state.update { it.copy(input = value) }
+        persist(debounce = true)
     }
 
     fun submit() {
@@ -90,9 +109,11 @@ class NumbatViewModel(application: Application) : AndroidViewModel(application) 
             it.copy(
                 input = "",
                 isEvaluating = true,
-                history = it.history + HistoryEntry(id = entryId, input = input),
+                history = (it.history + HistoryEntry(id = entryId, input = input))
+                    .takeLast(SessionStore.MAX_HISTORY),
             )
         }
+        persist()
 
         viewModelScope.launch {
             val result = withContext(engineDispatcher) {
@@ -117,9 +138,18 @@ class NumbatViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearHistory() {
         _state.update { it.copy(history = emptyList()) }
+        persist()
     }
 
     override fun onCleared() {
+        if (sessionLoaded) {
+            val snapshot = _state.value
+            persistJob?.cancel()
+            CoroutineScope(SupervisorJob() + persistDispatcher).launch(NonCancellable) {
+                sessionStore.save(snapshot.history, snapshot.input)
+            }
+        }
+
         val currentEngine = engine
         engine = null
         if (currentEngine != null) {
@@ -160,5 +190,20 @@ class NumbatViewModel(application: Application) : AndroidViewModel(application) 
                 },
             )
         }
+        persist()
+    }
+
+    private fun persist(debounce: Boolean = false) {
+        if (!sessionLoaded) return
+        persistJob?.cancel()
+        persistJob = viewModelScope.launch {
+            if (debounce) delay(SAVE_DEBOUNCE_MS)
+            val snapshot = _state.value
+            withContext(persistDispatcher) {
+                sessionStore.save(snapshot.history, snapshot.input)
+            }
+        }
     }
 }
+
+private const val SAVE_DEBOUNCE_MS = 250L
