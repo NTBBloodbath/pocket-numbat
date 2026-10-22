@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,8 +20,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -28,24 +30,27 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -58,6 +63,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
@@ -69,6 +75,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.ntbbloodbath.pocketnumbat.R
+import io.github.ntbbloodbath.pocketnumbat.ui.theme.LocalNumbatAccent
 import kotlinx.coroutines.launch
 
 @Composable
@@ -115,7 +122,6 @@ private fun NumbatContent(
         }
     }
 
-
     val loadError = state.loadError
 
     Scaffold(
@@ -157,20 +163,32 @@ private fun NumbatContent(
                     modifier = Modifier.weight(1f),
                 )
 
-                state.history.isEmpty() -> EmptyState(modifier = Modifier.weight(1f))
+                state.history.isEmpty() -> EmptyState(
+                    modifier = Modifier.weight(1f),
+                    onBrowseExamples = { showExamples = true },
+                )
                 else -> Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
+                    contentAlignment = Alignment.BottomCenter,
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight(),
                         state = listState,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(items = state.history, key = { it.id }) { entry ->
-                            HistoryItem(entry = entry, onCopy = copyText)
+                        itemsIndexed(items = state.history, key = { _, entry -> entry.id }) { index, entry ->
+                            HistoryItem(
+                                entry = entry,
+                                isLatest = index == state.history.lastIndex,
+                                onCopy = copyText,
+                                onReuse = onInputChange,
+                                reuseEnabled = !state.isEvaluating,
+                            )
                         }
                     }
                     if (listState.canScrollForward) {
@@ -222,118 +240,232 @@ private fun InputRow(
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
 ) {
-    Row(
+    val accent = LocalNumbatAccent.current
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 3.dp,
     ) {
-        OutlinedTextField(
-            value = input,
-            onValueChange = onInputChange,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text(stringResource(R.string.input_placeholder)) },
-            singleLine = true,
-            enabled = enabled,
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done,
-                keyboardType = KeyboardType.Text,
-            ),
-            keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-        )
-        FilledIconButton(
-            onClick = onSubmit,
-            enabled = enabled && input.isNotBlank(),
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = stringResource(R.string.evaluate),
+            TextField(
+                value = input,
+                onValueChange = onInputChange,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text(stringResource(R.string.input_placeholder)) },
+                prefix = {
+                    Text(
+                        text = ">",
+                        modifier = Modifier.padding(end = 4.dp),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontFamily = FontFamily.Monospace,
+                        color = accent,
+                    )
+                },
+                singleLine = true,
+                enabled = enabled,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Done,
+                    keyboardType = KeyboardType.Text,
+                ),
+                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                trailingIcon = {
+                    if (input.isNotEmpty() && enabled) {
+                        IconButton(onClick = { onInputChange("") }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.clear_input),
+                            )
+                        }
+                    }
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                ),
+            )
+            FilledIconButton(
+                onClick = onSubmit,
+                enabled = enabled && input.isNotBlank(),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = stringResource(R.string.evaluate),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryItem(
+    entry: HistoryEntry,
+    isLatest: Boolean,
+    onCopy: (String) -> Unit,
+    onReuse: (String) -> Unit,
+    reuseEnabled: Boolean,
+) {
+    if (isLatest) {
+        LatestHistoryItem(
+            entry = entry,
+            onCopy = onCopy,
+            onReuse = onReuse,
+            reuseEnabled = reuseEnabled,
+        )
+    } else {
+        OlderHistoryItem(
+            entry = entry,
+            onCopy = onCopy,
+            onReuse = onReuse,
+            reuseEnabled = reuseEnabled,
+        )
+    }
+}
+
+@Composable
+private fun LatestHistoryItem(
+    entry: HistoryEntry,
+    onCopy: (String) -> Unit,
+    onReuse: (String) -> Unit,
+    reuseEnabled: Boolean,
+) {
+    val accent = LocalNumbatAccent.current
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.45f)),
+        tonalElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = entry.input,
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val error = entry.error
+            val output = entry.output
+            when {
+                error != null -> Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.error,
+                )
+
+                output != null -> SelectionContainer {
+                    Text(
+                        text = output,
+                        style = if (output.length <= 20) {
+                            MaterialTheme.typography.displaySmall
+                        } else {
+                            MaterialTheme.typography.titleLarge
+                        },
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+
+                else -> LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            HistoryActions(
+                input = entry.input,
+                copyText = error ?: output,
+                onCopy = onCopy,
+                onReuse = onReuse,
+                reuseEnabled = reuseEnabled,
             )
         }
     }
 }
 
 @Composable
-private fun HistoryItem(entry: HistoryEntry, onCopy: (String) -> Unit) {
+private fun OlderHistoryItem(
+    entry: HistoryEntry,
+    onCopy: (String) -> Unit,
+    onReuse: (String) -> Unit,
+    reuseEnabled: Boolean,
+) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             text = entry.input,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.bodyMedium,
             fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-
         val error = entry.error
         val output = entry.output
         when {
-            error != null -> ErrorCard(error = error, onCopy = onCopy)
-            output != null -> ResultCard(output = output, onCopy = onCopy)
+            error != null -> Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.error,
+            )
+
+            output != null -> SelectionContainer {
+                Text(
+                    text = output,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+
             else -> LinearProgressIndicator(Modifier.fillMaxWidth())
         }
+        HistoryActions(
+            input = entry.input,
+            copyText = error ?: output,
+            onCopy = onCopy,
+            onReuse = onReuse,
+            reuseEnabled = reuseEnabled,
+        )
     }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
 
 @Composable
-private fun ResultCard(output: String, onCopy: (String) -> Unit) {
-    Card(
+private fun HistoryActions(
+    input: String,
+    copyText: String?,
+    onCopy: (String) -> Unit,
+    onReuse: (String) -> Unit,
+    reuseEnabled: Boolean,
+) {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SelectionContainer(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = output,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
-            }
-            TextButton(onClick = { onCopy(output) }) {
+        if (copyText != null) {
+            TextButton(onClick = { onCopy(copyText) }) {
                 Text(stringResource(R.string.copy))
             }
         }
-    }
-}
-
-@Composable
-private fun ErrorCard(error: String, onCopy: (String) -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-        ),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        TextButton(
+            onClick = { onReuse(input) },
+            enabled = reuseEnabled,
         ) {
-            SelectionContainer(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
-            }
-            TextButton(onClick = { onCopy(error) }) {
-                Text(
-                    text = stringResource(R.string.copy),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
+            Text(stringResource(R.string.reuse))
         }
     }
 }
@@ -373,26 +505,26 @@ private fun LoadErrorState(message: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
+private fun EmptyState(
+    modifier: Modifier = Modifier,
+    onBrowseExamples: () -> Unit,
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(24.dp),
+            .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = stringResource(R.string.empty_title),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.empty_example),
-            style = MaterialTheme.typography.bodyLarge,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Spacer(Modifier.height(16.dp))
+        FilledTonalButton(onClick = onBrowseExamples) {
+            Text(stringResource(R.string.browse_examples))
+        }
     }
 }
 
@@ -466,51 +598,78 @@ private fun ExamplesSheet(
             )
 
             exampleGroups.forEach { group ->
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    text = stringResource(group.titleRes),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                group.noteRes?.let { noteRes ->
-                    Text(
-                        text = stringResource(noteRes),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                group.examples.forEach { example ->
-                    Text(
-                        text = example,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(role = Role.Button) { onExampleSelected(example) }
-                            .padding(vertical = 10.dp),
-                    )
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = stringResource(group.titleRes),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        group.noteRes?.let { noteRes ->
+                            Text(
+                                text = stringResource(noteRes),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                        group.examples.forEach { example ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(role = Role.Button) { onExampleSelected(example) }
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = ">",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = LocalNumbatAccent.current,
+                                )
+                                Text(
+                                    text = example,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
-            Text(
-                text = stringResource(R.string.more_on_numbat_dev),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            listOf(
-                R.string.numbat_examples to NUMBAT_EXAMPLES_URL,
-                R.string.numbat_syntax to NUMBAT_SYNTAX_URL,
-            ).forEach { (labelRes, url) ->
-                Text(
-                    text = stringResource(labelRes),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(role = Role.Button) { uriHandler.openUri(url) }
-                        .padding(vertical = 10.dp),
-                )
+            Spacer(Modifier.height(16.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = stringResource(R.string.more_on_numbat_dev),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    listOf(
+                        R.string.numbat_examples to NUMBAT_EXAMPLES_URL,
+                        R.string.numbat_syntax to NUMBAT_SYNTAX_URL,
+                    ).forEach { (labelRes, url) ->
+                        Text(
+                            text = stringResource(labelRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(role = Role.Button) { uriHandler.openUri(url) }
+                                .padding(vertical = 8.dp),
+                        )
+                    }
+                }
             }
         }
     }

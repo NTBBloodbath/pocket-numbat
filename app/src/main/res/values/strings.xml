@@ -5,10 +5,12 @@
     <string name="copy">Copy</string>
     <string name="copied">Copied</string>
     <string name="evaluate">Evaluate</string>
+    <string name="browse_examples">Browse examples</string>
+    <string name="reuse">Reuse</string>
+    <string name="clear_input">Clear input</string>
     <string name="input_placeholder">Enter a Numbat expression</string>
-    <string name="empty_title">Type a Numbat expression to get started</string>
-    <string name="empty_example">2 m + 30 cm</string>
-    <string name="loading">Loading Numbat...</string>
+    <string name="empty_title">Type an expression to get started</string>
+    <string name="loading">Loading Numbat…</string>
     <string name="load_error">Numbat failed to load: %1$s</string>
     <string name="help">Help</string>
     <string name="examples_title">Examples</string>
