@@ -33,10 +33,13 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +51,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
@@ -55,8 +59,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -107,6 +115,7 @@ private fun NumbatContent(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var showExamples by rememberSaveable { mutableStateOf(false) }
+    var showClearHistory by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -139,20 +148,64 @@ private fun NumbatContent(
                 TopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
                     actions = {
-                        TextButton(onClick = { showExamples = true }) {
-                            Text(stringResource(R.string.examples_title))
-                        }
-                        if (state.history.isNotEmpty()) {
-                            TextButton(onClick = onClear) {
-                                Text(stringResource(R.string.clear))
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                TooltipAnchorPosition.Below,
+                            ),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text(stringResource(R.string.examples_title))
+                                }
+                            },
+                            state = rememberTooltipState(),
+                        ) {
+                            IconButton(onClick = { showExamples = true }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.List,
+                                    contentDescription = stringResource(R.string.examples_title),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
                             }
                         }
-                        IconButton(onClick = { uriHandler.openUri(NUMBAT_TUTORIAL_URL) }) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = stringResource(R.string.help),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
+                        if (state.history.isNotEmpty()) {
+                            TooltipBox(
+                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                    TooltipAnchorPosition.Below,
+                                ),
+                                tooltip = {
+                                    PlainTooltip {
+                                        Text(stringResource(R.string.clear_history))
+                                    }
+                                },
+                                state = rememberTooltipState(),
+                            ) {
+                                IconButton(onClick = { showClearHistory = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = stringResource(R.string.clear_history),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                TooltipAnchorPosition.Below,
+                            ),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text(stringResource(R.string.help))
+                                }
+                            },
+                            state = rememberTooltipState(),
+                        ) {
+                            IconButton(onClick = { uriHandler.openUri(NUMBAT_TUTORIAL_URL) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = stringResource(R.string.help),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     },
                 )
@@ -237,6 +290,29 @@ private fun NumbatContent(
             onExampleSelected = { expression ->
                 onInputChange(expression)
                 showExamples = false
+            },
+        )
+    }
+
+    if (showClearHistory) {
+        AlertDialog(
+            onDismissRequest = { showClearHistory = false },
+            title = { Text(stringResource(R.string.clear_history_title)) },
+            text = { Text(stringResource(R.string.clear_history_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onClear()
+                        showClearHistory = false
+                    },
+                ) {
+                    Text(stringResource(R.string.clear_history))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearHistory = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             },
         )
     }
@@ -428,7 +504,7 @@ private fun ErrorCard(
             SelectionContainer(modifier = Modifier.weight(1f)) {
                 Text(
                     text = error,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.padding(vertical = 8.dp),

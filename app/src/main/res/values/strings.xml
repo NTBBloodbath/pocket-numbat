@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Pocket Numbat</string>
-    <string name="clear">Clear</string>
+    <string name="clear_history_title">Clear history?</string>
+    <string name="clear_history_message">This removes all saved calculations. Your current input will stay.</string>
+    <string name="clear_history">Clear history</string>
+    <string name="cancel">Cancel</string>
     <string name="copy">Copy</string>
     <string name="copied">Copied</string>
     <string name="evaluate">Evaluate</string>
