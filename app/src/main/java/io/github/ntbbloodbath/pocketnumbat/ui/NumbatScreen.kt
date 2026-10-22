@@ -3,6 +3,7 @@ package io.github.ntbbloodbath.pocketnumbat.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.Configuration
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -25,8 +26,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -61,21 +65,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.ntbbloodbath.pocketnumbat.R
 import io.github.ntbbloodbath.pocketnumbat.ui.theme.LocalNumbatAccent
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 @Composable
@@ -104,6 +110,8 @@ private fun NumbatContent(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val hideTopBar = imeVisible && isLandscape
     val copyText: (String) -> Unit = { text ->
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Numbat", text))
@@ -127,26 +135,28 @@ private fun NumbatContent(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                actions = {
-                    TextButton(onClick = { showExamples = true }) {
-                        Text(stringResource(R.string.examples_title))
-                    }
-                    if (state.history.isNotEmpty()) {
-                        TextButton(onClick = onClear) {
-                            Text(stringResource(R.string.clear))
+            if (!hideTopBar) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.app_name)) },
+                    actions = {
+                        TextButton(onClick = { showExamples = true }) {
+                            Text(stringResource(R.string.examples_title))
                         }
-                    }
-                    IconButton(onClick = { uriHandler.openUri(NUMBAT_TUTORIAL_URL) }) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = stringResource(R.string.help),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                },
-            )
+                        if (state.history.isNotEmpty()) {
+                            TextButton(onClick = onClear) {
+                                Text(stringResource(R.string.clear))
+                            }
+                        }
+                        IconButton(onClick = { uriHandler.openUri(NUMBAT_TUTORIAL_URL) }) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = stringResource(R.string.help),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    },
+                )
+            }
         },
     ) { innerPadding ->
         Column(
@@ -241,6 +251,19 @@ private fun InputRow(
     onSubmit: () -> Unit,
 ) {
     val accent = LocalNumbatAccent.current
+    val textState = rememberTextFieldState(input)
+
+    LaunchedEffect(input) {
+        if (textState.text.toString() != input) {
+            textState.setTextAndPlaceCursorAtEnd(input)
+        }
+    }
+
+    LaunchedEffect(textState) {
+        snapshotFlow { textState.text.toString() }
+            .collect { onInputChange(it) }
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -255,8 +278,7 @@ private fun InputRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TextField(
-                value = input,
-                onValueChange = onInputChange,
+                state = textState,
                 modifier = Modifier.weight(1f),
                 placeholder = { Text(stringResource(R.string.input_placeholder)) },
                 prefix = {
@@ -268,17 +290,13 @@ private fun InputRow(
                         color = accent,
                     )
                 },
-                singleLine = true,
+                lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 1, maxHeightInLines = 4),
                 enabled = enabled,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Done,
-                    keyboardType = KeyboardType.Text,
-                ),
-                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                 trailingIcon = {
-                    if (input.isNotEmpty() && enabled) {
-                        IconButton(onClick = { onInputChange("") }) {
+                    if (textState.text.isNotEmpty() && enabled) {
+                        IconButton(onClick = { textState.clearText() }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.clear_input),
@@ -296,8 +314,11 @@ private fun InputRow(
                 ),
             )
             FilledIconButton(
-                onClick = onSubmit,
-                enabled = enabled && input.isNotBlank(),
+                onClick = {
+                    onInputChange(textState.text.toString())
+                    onSubmit()
+                },
+                enabled = enabled && textState.text.isNotBlank(),
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
