@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.Configuration
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,13 +37,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -189,12 +189,11 @@ private fun NumbatContent(
                             .wrapContentHeight(),
                         state = listState,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        itemsIndexed(items = state.history, key = { _, entry -> entry.id }) { index, entry ->
+                        items(items = state.history, key = { it.id }) { entry ->
                             HistoryItem(
                                 entry = entry,
-                                isLatest = index == state.history.lastIndex,
                                 onCopy = copyText,
                                 onReuse = onInputChange,
                                 reuseEnabled = !state.isEvaluating,
@@ -332,161 +331,124 @@ private fun InputRow(
 @Composable
 private fun HistoryItem(
     entry: HistoryEntry,
-    isLatest: Boolean,
-    onCopy: (String) -> Unit,
-    onReuse: (String) -> Unit,
-    reuseEnabled: Boolean,
-) {
-    if (isLatest) {
-        LatestHistoryItem(
-            entry = entry,
-            onCopy = onCopy,
-            onReuse = onReuse,
-            reuseEnabled = reuseEnabled,
-        )
-    } else {
-        OlderHistoryItem(
-            entry = entry,
-            onCopy = onCopy,
-            onReuse = onReuse,
-            reuseEnabled = reuseEnabled,
-        )
-    }
-}
-
-@Composable
-private fun LatestHistoryItem(
-    entry: HistoryEntry,
-    onCopy: (String) -> Unit,
-    onReuse: (String) -> Unit,
-    reuseEnabled: Boolean,
-) {
-    val accent = LocalNumbatAccent.current
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.45f)),
-        tonalElevation = 1.dp,
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = entry.input,
-                style = MaterialTheme.typography.bodyMedium,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val error = entry.error
-            val output = entry.output
-            when {
-                error != null -> Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.error,
-                )
-
-                output != null -> SelectionContainer {
-                    Text(
-                        text = output,
-                        style = if (output.length <= 20) {
-                            MaterialTheme.typography.displaySmall
-                        } else {
-                            MaterialTheme.typography.titleLarge
-                        },
-                        fontFamily = FontFamily.Monospace,
-                    )
-                }
-
-                else -> LinearProgressIndicator(Modifier.fillMaxWidth())
-            }
-            HistoryActions(
-                input = entry.input,
-                copyText = error ?: output,
-                onCopy = onCopy,
-                onReuse = onReuse,
-                reuseEnabled = reuseEnabled,
-            )
-        }
-    }
-}
-
-@Composable
-private fun OlderHistoryItem(
-    entry: HistoryEntry,
     onCopy: (String) -> Unit,
     onReuse: (String) -> Unit,
     reuseEnabled: Boolean,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             text = entry.input,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.titleMedium,
             fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val error = entry.error
         val output = entry.output
         when {
-            error != null -> Text(
-                text = error,
-                style = MaterialTheme.typography.bodyMedium,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.error,
+            error != null -> ErrorCard(
+                error = error,
+                onCopy = { onCopy(error) },
+                onReuse = { onReuse(entry.input) },
+                reuseEnabled = reuseEnabled,
             )
 
-            output != null -> SelectionContainer {
-                Text(
-                    text = output,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontFamily = FontFamily.Monospace,
-                )
-            }
+            output != null -> ResultCard(
+                output = output,
+                onCopy = { onCopy(output) },
+                onReuse = { onReuse(entry.input) },
+                reuseEnabled = reuseEnabled,
+            )
 
             else -> LinearProgressIndicator(Modifier.fillMaxWidth())
         }
-        HistoryActions(
-            input = entry.input,
-            copyText = error ?: output,
-            onCopy = onCopy,
-            onReuse = onReuse,
-            reuseEnabled = reuseEnabled,
-        )
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
 
 @Composable
-private fun HistoryActions(
-    input: String,
-    copyText: String?,
-    onCopy: (String) -> Unit,
-    onReuse: (String) -> Unit,
+private fun ResultCard(
+    output: String,
+    onCopy: () -> Unit,
+    onReuse: () -> Unit,
     reuseEnabled: Boolean,
 ) {
-    Row(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
     ) {
-        if (copyText != null) {
-            TextButton(onClick = { onCopy(copyText) }) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = output,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
+            TextButton(
+                onClick = onReuse,
+                enabled = reuseEnabled,
+            ) {
+                Text(stringResource(R.string.reuse))
+            }
+            TextButton(onClick = onCopy) {
                 Text(stringResource(R.string.copy))
             }
         }
-        TextButton(
-            onClick = { onReuse(input) },
-            enabled = reuseEnabled,
+    }
+}
+
+@Composable
+private fun ErrorCard(
+    error: String,
+    onCopy: () -> Unit,
+    onReuse: () -> Unit,
+    reuseEnabled: Boolean,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.reuse))
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
+            TextButton(
+                onClick = onReuse,
+                enabled = reuseEnabled,
+            ) {
+                Text(
+                    text = stringResource(R.string.reuse),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            TextButton(onClick = onCopy) {
+                Text(
+                    text = stringResource(R.string.copy),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
         }
     }
 }
