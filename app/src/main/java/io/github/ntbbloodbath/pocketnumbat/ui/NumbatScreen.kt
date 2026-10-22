@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
@@ -36,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -45,6 +47,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
@@ -91,6 +95,7 @@ private fun NumbatContent(
     val scope = rememberCoroutineScope()
     var showExamples by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val copyText: (String) -> Unit = { text ->
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -120,12 +125,19 @@ private fun NumbatContent(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     TextButton(onClick = { showExamples = true }) {
-                        Text(stringResource(R.string.help))
+                        Text(stringResource(R.string.examples_title))
                     }
                     if (state.history.isNotEmpty()) {
                         TextButton(onClick = onClear) {
                             Text(stringResource(R.string.clear))
                         }
+                    }
+                    IconButton(onClick = { uriHandler.openUri(NUMBAT_TUTORIAL_URL) }) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = stringResource(R.string.help),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 },
             )
@@ -384,6 +396,10 @@ private fun EmptyState(modifier: Modifier = Modifier) {
     }
 }
 
+private const val NUMBAT_TUTORIAL_URL = "https://numbat.dev/docs/tutorial/"
+private const val NUMBAT_EXAMPLES_URL = "https://numbat.dev/docs/examples/"
+private const val NUMBAT_SYNTAX_URL = "https://numbat.dev/docs/examples/example-numbat_syntax/"
+
 private data class ExampleGroup(
     val titleRes: Int,
     val examples: List<String>,
@@ -426,7 +442,12 @@ private fun ExamplesSheet(
     onDismiss: () -> Unit,
     onExampleSelected: (String) -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val uriHandler = LocalUriHandler.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -469,6 +490,27 @@ private fun ExamplesSheet(
                             .padding(vertical = 10.dp),
                     )
                 }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.more_on_numbat_dev),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            listOf(
+                R.string.numbat_examples to NUMBAT_EXAMPLES_URL,
+                R.string.numbat_syntax to NUMBAT_SYNTAX_URL,
+            ).forEach { (labelRes, url) ->
+                Text(
+                    text = stringResource(labelRes),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(role = Role.Button) { uriHandler.openUri(url) }
+                        .padding(vertical = 10.dp),
+                )
             }
         }
     }

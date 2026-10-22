@@ -18,5 +18,8 @@
     <string name="examples_currency_note">Currency examples need exchange rates. The app fetches them when online.</string>
     <string name="examples_variables">Variables</string>
     <string name="examples_functions">Functions</string>
+    <string name="more_on_numbat_dev">More on Numbat documentation</string>
+    <string name="numbat_examples">Examples index</string>
+    <string name="numbat_syntax">Numbat syntax</string>
     <string name="jump_to_latest">Jump to latest</string>
 </resources>
