@@ -1,1 +1,1 @@
-Native Numbat calculator with units, currencies, and offline math.
+Native Numbat calculator with units, currencies, and offline math

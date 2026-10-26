@@ -1,0 +1,74 @@
+name: Release PR metadata
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-pr-metadata-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  metadata:
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release-please--branches--master')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.PAT }}
+          fetch-depth: 0
+
+      - name: Sync release metadata
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          VERSION="$(tr -d '[:space:]' < version.txt)"
+          test -n "$VERSION"
+
+          CURRENT_NAME="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts)"
+          CODE="$(sed -n 's/^[[:space:]]*versionCode = \([0-9]\+\)$/\1/p' app/build.gradle.kts)"
+          BASE_CODE="$(git show origin/master:app/build.gradle.kts | sed -n 's/^[[:space:]]*versionCode = \([0-9]\+\)$/\1/p')"
+          test -n "$CURRENT_NAME"
+          test -n "$CODE"
+          test -n "$BASE_CODE"
+
+          if [ "$CURRENT_NAME" != "$VERSION" ] && [ "$CODE" -le "$BASE_CODE" ]; then
+            CODE=$((BASE_CODE + 1))
+          fi
+
+          sed -i -E "s/^([[:space:]]*versionName = )\"[^\"]*\"/\1\"$VERSION\"/" app/build.gradle.kts
+          sed -i -E "s/^([[:space:]]*versionCode = )[0-9]+/\1$CODE/" app/build.gradle.kts
+
+          CHANGELOG="fastlane/metadata/android/en-US/changelogs/$CODE.txt"
+          if [ ! -f "$CHANGELOG" ]; then
+            gh pr view "$PR_NUMBER" --json body --jq '.body' \
+              | sed -E 's/\[([^]]+)\]\([^)]+\)/\1/g; s/\*\*//g; s/^#+ //; s/^[*-] //' \
+              | sed '/<!--/d; /^$/d' \
+              | head -c 500 > "$CHANGELOG"
+            if [ ! -s "$CHANGELOG" ]; then
+              printf 'Release %s.\n' "$VERSION" > "$CHANGELOG"
+            fi
+          fi
+
+          git add app/build.gradle.kts "$CHANGELOG"
+          if git diff --cached --quiet; then
+            echo "Release metadata already in sync."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(release): sync version metadata"
+          git push origin "HEAD:$HEAD_REF"

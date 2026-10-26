@@ -51,13 +51,17 @@ cargo test --manifest-path rust/Cargo.toml
 
 ### Release
 
+Releases are automated. Merge a Release Please pull request on `master`; Release Please creates the
+tag and a GitHub release with the changelog and source archives. F-Droid builds and signs the
+distributed APK from that tag. See `RELEASING.md` for the process.
+
+To build an unsigned APK locally:
+
 ```bash
 ./gradlew assembleRelease
 ```
 
-This produces an unsigned APK at `app/build/outputs/apk/release/app-release-unsigned.apk`. Release
-builds enable R8 and resource shrinking. Sign the APK with `apksigner` or your distribution's
-signing setup before installing it. See `SIGNING.md` for keystore creation and verification.
+The APK is written to `app/build/outputs/apk/release/app-release-unsigned.apk`.
 
 ## License
 

@@ -77,7 +77,7 @@ val buildRust = tasks.register<Exec>("buildRust") {
         "-t", "arm64-v8a",
         "-t", "x86_64",
         "-o", rustJniLibsDir.get().asFile.absolutePath,
-        "build", "--release",
+        "build", "--release", "--locked",
     )
 
     environment("ANDROID_HOME", androidSdkDir)
