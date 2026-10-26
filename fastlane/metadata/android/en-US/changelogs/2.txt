@@ -1,0 +1,1 @@
+Initial release with native Numbat evaluation, unit-aware results, formatted diagnostics, persistent history, reusable results, examples, and cached ECB exchange rates.
