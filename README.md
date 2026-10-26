@@ -52,8 +52,8 @@ cargo test --manifest-path rust/Cargo.toml
 ### Release
 
 Releases are automated. Merge a Release Please pull request on `master`; Release Please creates the
-tag and a GitHub release with the changelog and source archives. F-Droid builds and signs the
-distributed APK from that tag. See `RELEASING.md` for the process.
+tag and a GitHub release with the changelog and source archives. The `Release APK` workflow builds
+and signs the APK from that tag and attaches it to the release. See `RELEASING.md` for the process.
 
 To build an unsigned APK locally:
 

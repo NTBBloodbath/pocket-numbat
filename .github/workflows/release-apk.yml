@@ -1,0 +1,79 @@
+name: Release APK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-37.0 build-tools;37.0.0 ndk;28.2.13676358'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: cargo install cargo-ndk --version 4.1.2 --locked
+
+      - name: Build unsigned APK
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Sign APK
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/release.jks"
+          printf '%s' "$SIGNING_KEY_BASE64" | base64 -d > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          OUT="pocket-numbat-${TAG#v}.apk"
+          "${ANDROID_HOME}/build-tools/37.0.0/apksigner" sign \
+            --ks "$KEYSTORE" \
+            --ks-key-alias "$SIGNING_KEY_ALIAS" \
+            --ks-pass env:SIGNING_STORE_PASSWORD \
+            --key-pass env:SIGNING_KEY_PASSWORD \
+            --out "$OUT" \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --print-certs "$OUT"
+          echo "SIGNED_APK=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" "$SIGNED_APK" --clobber

@@ -5,7 +5,8 @@ Releases are driven by Conventional Commits on `master`.
 ## Versioning
 
 `version.txt` is the Release Please source of truth. Keep `versionName` and `versionCode` as
-literal values in `app/build.gradle.kts` because F-Droid reads them without running Gradle.
+literal values in `app/build.gradle.kts` because the release metadata workflow reads them without
+running Gradle.
 
 ## Release pull request
 
@@ -18,23 +19,43 @@ literal values in `app/build.gradle.kts` because F-Droid reads them without runn
    check is failing.
 5. Merge the pull request.
 
-For the first release, `version.txt` starts at `0.0.1` while Gradle already has
-`versionName = "0.1.0"` and `versionCode = 1`. The metadata workflow keeps version code 1
-because the version name already matches, and the existing `changelogs/1.txt` is preserved.
-
 ## Release
 
 When the release pull request is merged, Release Please creates the `v<version>` tag and a GitHub
-release whose body is the matching `CHANGELOG.md` section. GitHub automatically attaches the
-source code archives. No APK is published on GitHub.
+release. The `Release APK` workflow runs on `release: published`, builds `assembleRelease` from the
+tag, signs the APK, and uploads `pocket-numbat-<version>.apk` to the release.
 
-## Secrets
+To rebuild or attach an APK to an existing release, run the `Release APK` workflow manually with the
+tag, for example `v1.0.0`. An existing asset with the same name is replaced.
+
+## Signing
+
+Generate a release keystore once and back it up offline. Losing it means users must uninstall and
+reinstall to receive updates.
+
+```bash
+keytool -genkeypair -v \
+  -keystore pocket-numbat-release.jks \
+  -alias pocket-numbat \
+  -keyalg RSA -keysize 4096 -validity 3650
+```
+
+Add these repository secrets:
+
+- `SIGNING_KEY_BASE64`: output of `base64 -w0 pocket-numbat-release.jks`
+- `SIGNING_STORE_PASSWORD`
+- `SIGNING_KEY_ALIAS`
+- `SIGNING_KEY_PASSWORD`
 
 Configure `PAT` as a repository secret. Release Please and the metadata workflow use it and need
-contents and pull request write access. No signing secrets are needed.
+contents and pull request write access.
 
-## F-Droid
+Do not commit the keystore. `.gitignore` excludes `*.jks`, `*.keystore`, and `key.properties`.
 
-F-Droid builds and signs the APK from the tagged commit. After the first `v0.1.0` release, add
-metadata for `io.github.ntbbloodbath.pocketnumbat` to the `fdroiddata` repository and keep the
-fastlane changelog under 500 characters.
+## Distribution
+
+GitHub Releases is the distribution channel. Friends install the signed APK once and can use
+Obtainium with the repository URL for updates.
+
+The first signed release uses a new key. Anyone on a debug APK must uninstall it once before
+installing the signed APK.
