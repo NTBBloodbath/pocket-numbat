@@ -22,10 +22,7 @@ jobs:
 
       - uses: android-actions/setup-android@v3
         with:
-          packages: |
-            platforms;android-37
-            build-tools;37.0.0
-            ndk;28.2.13676358
+          packages: 'platforms;android-37.0 build-tools;37.0.0 ndk;28.2.13676358'
 
       - uses: dtolnay/rust-toolchain@stable
         with:
