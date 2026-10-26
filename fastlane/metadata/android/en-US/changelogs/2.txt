@@ -1,0 +1,14 @@
+:robot: I have created a release *beep* *boop*
+---
+1.0.0 (2026-10-26)
+Features
+android: scaffold Compose app (9cd685a)
+android: wire Numbat JNI bridge (991e592)
+currency: load and cache ECB exchange rates (e6aadb8)
+rust: add Numbat JNI bridge (9cb4905)
+session: persist history and composer draft (0207e1d)
+ui: add clear history confirmation and icon actions (7f5bf44)
+ui: add examples hub and docs links (3418aa8)
+ui: add Numbat examples sheet (6e4b770)
+ui: add Numbat REPL (92deca6)
+ui: keep newest
