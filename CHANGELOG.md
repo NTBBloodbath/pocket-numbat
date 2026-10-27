@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/NTBBloodbath/pocket-numbat/compare/v1.0.0...v1.1.0) (2026-10-27)
+
+
+### Features
+
+* **ui:** add input assist and definition feedback ([2ddd738](https://github.com/NTBBloodbath/pocket-numbat/commit/2ddd738a20cd204c9dc9d3cdb82ad707f758f586))
+
 ## 1.0.0 (2026-10-26)
 
 
