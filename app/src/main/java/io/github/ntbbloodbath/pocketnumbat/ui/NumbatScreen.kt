@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +30,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
@@ -34,6 +38,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
@@ -55,6 +60,7 @@ import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -70,24 +76,33 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.ntbbloodbath.pocketnumbat.R
+import io.github.ntbbloodbath.pocketnumbat.calc.Identifier
+import io.github.ntbbloodbath.pocketnumbat.calc.IdentifierKind
 import io.github.ntbbloodbath.pocketnumbat.ui.theme.LocalNumbatAccent
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -277,6 +292,7 @@ private fun NumbatContent(
 
             InputRow(
                 input = state.input,
+                identifiers = state.identifiers,
                 enabled = !state.isLoading && loadError == null && !state.isEvaluating,
                 onInputChange = onInputChange,
                 onSubmit = onSubmit,
@@ -321,12 +337,15 @@ private fun NumbatContent(
 @Composable
 private fun InputRow(
     input: String,
+    identifiers: List<Identifier>,
     enabled: Boolean,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
 ) {
     val accent = LocalNumbatAccent.current
     val textState = rememberTextFieldState(input)
+    val suggestionScroll = rememberScrollState()
+    var focused by remember { mutableStateOf(false) }
 
     LaunchedEffect(input) {
         if (textState.text.toString() != input) {
@@ -339,6 +358,26 @@ private fun InputRow(
             .collect { onInputChange(it) }
     }
 
+    val cursor = textState.selection.max
+    val token = completionToken(textState.text.toString(), cursor)
+    val suggestions = if (focused && token.isNotEmpty()) {
+        identifiers
+            .filter {
+                it.name.startsWith(token, ignoreCase = true) &&
+                    !it.name.equals(token, ignoreCase = true)
+            }
+            .sortedWith(
+                compareBy<Identifier>(
+                    { it.kind != IdentifierKind.FUNCTION },
+                    { it.name.length },
+                    { it.name },
+                ),
+            )
+            .take(6)
+    } else {
+        emptyList()
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -347,60 +386,119 @@ private fun InputRow(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 3.dp,
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            TextField(
-                state = textState,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(stringResource(R.string.input_placeholder)) },
-                prefix = {
-                    Text(
-                        text = ">",
-                        modifier = Modifier.padding(end = 4.dp),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontFamily = FontFamily.Monospace,
-                        color = accent,
-                    )
-                },
-                lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 1, maxHeightInLines = 4),
-                enabled = enabled,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                trailingIcon = {
-                    if (textState.text.isNotEmpty() && enabled) {
-                        IconButton(onClick = { textState.clearText() }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = stringResource(R.string.clear_input),
-                            )
-                        }
+            if (suggestions.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(suggestionScroll),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    suggestions.forEach { identifier ->
+                        SuggestionChip(
+                            onClick = { insertIdentifier(textState, identifier) },
+                            label = {
+                                Text(
+                                    text = identifier.name +
+                                        if (identifier.kind == IdentifierKind.FUNCTION) "(" else "",
+                                )
+                            },
+                        )
                     }
-                },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                ),
-            )
-            FilledIconButton(
-                onClick = {
-                    onInputChange(textState.text.toString())
-                    onSubmit()
-                },
-                enabled = enabled && textState.text.isNotBlank(),
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = stringResource(R.string.evaluate),
+                TextField(
+                    state = textState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .onFocusChanged { focused = it.isFocused },
+                    placeholder = { Text(stringResource(R.string.input_placeholder)) },
+                    prefix = {
+                        Text(
+                            text = ">",
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .clearAndSetSemantics {},
+                            style = MaterialTheme.typography.titleLarge,
+                            fontFamily = FontFamily.Monospace,
+                            color = accent,
+                        )
+                    },
+                    lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 1, maxHeightInLines = 4),
+                    enabled = enabled,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    trailingIcon = {
+                        if (textState.text.isNotEmpty() && enabled) {
+                            IconButton(onClick = { textState.clearText() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.clear_input),
+                                )
+                            }
+                        }
+                    },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                    ),
                 )
+                FilledIconButton(
+                    onClick = {
+                        onInputChange(textState.text.toString())
+                        onSubmit()
+                    },
+                    enabled = enabled && textState.text.isNotBlank(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = stringResource(R.string.evaluate),
+                    )
+                }
             }
         }
+    }
+}
+
+private fun completionToken(text: String, cursor: Int): String {
+    val end = cursor.coerceIn(0, text.length)
+    var start = end
+    while (start > 0 && text[start - 1].isIdentifierPart()) {
+        start--
+    }
+    return text.substring(start, end)
+}
+
+private fun Char.isIdentifierPart(): Boolean {
+    return isLetterOrDigit() || this == '_' || this == '°' || this == 'µ' || this == 'Ω'
+}
+
+private fun insertIdentifier(textState: TextFieldState, identifier: Identifier) {
+    val end = textState.selection.max
+    val text = textState.text.toString()
+    var start = end
+    while (start > 0 && text[start - 1].isIdentifierPart()) {
+        start--
+    }
+    val insertion = if (identifier.kind == IdentifierKind.FUNCTION) {
+        "${identifier.name}("
+    } else {
+        identifier.name
+    }
+    textState.edit {
+        replace(start, end, insertion)
+        selection = TextRange(start + insertion.length)
     }
 }
 
@@ -415,11 +513,13 @@ private fun HistoryItem(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            text = entry.input,
-            style = MaterialTheme.typography.titleMedium,
-            fontFamily = FontFamily.Monospace,
-        )
+        SelectionContainer {
+            Text(
+                text = entry.input,
+                style = MaterialTheme.typography.titleMedium,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
         val error = entry.error
         val output = entry.output
         when {
@@ -430,16 +530,64 @@ private fun HistoryItem(
                 reuseEnabled = reuseEnabled,
             )
 
-            output != null -> ResultCard(
+            output == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
+
+            output.isEmpty() -> DefinitionRow(
+                input = entry.input,
+                onReuse = { onReuse(entry.input) },
+                reuseEnabled = reuseEnabled,
+            )
+
+            else -> ResultCard(
                 output = output,
                 onCopy = { onCopy(output) },
                 onReuse = { onReuse(entry.input) },
                 reuseEnabled = reuseEnabled,
             )
-
-            else -> LinearProgressIndicator(Modifier.fillMaxWidth())
         }
     }
+}
+
+@Composable
+private fun DefinitionRow(
+    input: String,
+    onReuse: () -> Unit,
+    reuseEnabled: Boolean,
+) {
+    val label = if (input.isDefinition()) R.string.defined else R.string.done
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(label),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onReuse, enabled = reuseEnabled) {
+                Text(stringResource(R.string.reuse))
+            }
+        }
+    }
+}
+
+private fun String.isDefinition(): Boolean {
+    val keyword = trimStart().takeWhile { !it.isWhitespace() && it != ';' }
+    return keyword in setOf("let", "fn", "function", "unit", "dimension")
 }
 
 @Composable
@@ -466,7 +614,9 @@ private fun ResultCard(
                     text = output,
                     style = MaterialTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .padding(vertical = 8.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
             TextButton(
@@ -507,7 +657,9 @@ private fun ErrorCard(
                     style = MaterialTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .padding(vertical = 8.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
             TextButton(

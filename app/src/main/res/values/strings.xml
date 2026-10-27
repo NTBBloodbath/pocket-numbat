@@ -27,4 +27,6 @@
     <string name="numbat_examples">Examples index</string>
     <string name="numbat_syntax">Numbat syntax</string>
     <string name="jump_to_latest">Jump to latest</string>
+    <string name="defined">Defined</string>
+    <string name="done">Done</string>
 </resources>

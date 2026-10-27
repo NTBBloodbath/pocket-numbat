@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.ntbbloodbath.pocketnumbat.calc.ExchangeRates
+import io.github.ntbbloodbath.pocketnumbat.calc.Identifier
 import io.github.ntbbloodbath.pocketnumbat.calc.NumbatEngine
 import io.github.ntbbloodbath.pocketnumbat.calc.NumbatNative
 import java.io.File
@@ -35,6 +36,7 @@ data class UiState(
     val isLoading: Boolean = true,
     val loadError: String? = null,
     val isEvaluating: Boolean = false,
+    val identifiers: List<Identifier> = emptyList(),
 )
 
 class NumbatViewModel(application: Application) : AndroidViewModel(application) {
@@ -85,7 +87,10 @@ class NumbatViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             engine = created
-            _state.update { it.copy(isLoading = false) }
+            val identifiers = withContext(engineDispatcher) {
+                runCatching { created.identifiers() }.getOrDefault(emptyList())
+            }
+            _state.update { it.copy(isLoading = false, identifiers = identifiers) }
         }
     }
 
@@ -132,7 +137,12 @@ class NumbatViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
 
-            _state.update { it.copy(isEvaluating = false) }
+            val identifiers = withContext(engineDispatcher) {
+                currentEngine?.let { engine ->
+                    runCatching { engine.identifiers() }.getOrDefault(emptyList())
+                } ?: emptyList()
+            }
+            _state.update { it.copy(isEvaluating = false, identifiers = identifiers) }
         }
     }
 

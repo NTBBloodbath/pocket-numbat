@@ -15,5 +15,8 @@ object NumbatNative {
     external fun nativeInterpret(handle: Long, input: String): String
 
     @JvmStatic
+    external fun nativeIdentifiers(handle: Long): String
+
+    @JvmStatic
     external fun nativeSetExchangeRates(xml: String)
 }

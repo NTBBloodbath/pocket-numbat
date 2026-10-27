@@ -68,6 +68,26 @@ impl Engine {
         Ok(output.trim().to_string())
     }
 
+    pub fn identifiers(&self) -> String {
+        let mut output = String::new();
+        for name in self.ctx.unit_names().iter().flatten() {
+            output.push_str("unit|");
+            output.push_str(name.as_str());
+            output.push('\n');
+        }
+        for name in self.ctx.function_names() {
+            output.push_str("function|");
+            output.push_str(name.as_str());
+            output.push('\n');
+        }
+        for name in self.ctx.variable_names() {
+            output.push_str("variable|");
+            output.push_str(name.as_str());
+            output.push('\n');
+        }
+        output
+    }
+
     pub fn set_exchange_rates(xml: &str) {
         if EXCHANGE_RATES_INITIALIZED.set(()).is_ok() {
             Context::set_exchange_rates(xml);
@@ -205,6 +225,41 @@ pub unsafe extern "system" fn Java_io_github_ntbbloodbath_pocketnumbat_calc_Numb
 
 /// # Safety
 ///
+/// `handle` must be null or a pointer returned by `nativeCreate` that has not
+/// already been destroyed.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_io_github_ntbbloodbath_pocketnumbat_calc_NumbatNative_nativeIdentifiers(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    if handle == 0 {
+        throw(&mut env, "native engine handle is null");
+        return std::ptr::null_mut();
+    }
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let engine = unsafe { &*(handle as *const Engine) };
+        engine.identifiers()
+    }));
+
+    match result {
+        Ok(output) => match env.new_string(output) {
+            Ok(output) => output.into_raw(),
+            Err(err) => {
+                throw(&mut env, err.to_string());
+                std::ptr::null_mut()
+            }
+        },
+        Err(payload) => {
+            throw(&mut env, panic_message(payload));
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// # Safety
+///
 /// `xml` must be a valid Java string reference.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_github_ntbbloodbath_pocketnumbat_calc_NumbatNative_nativeSetExchangeRates(
@@ -275,6 +330,27 @@ mod tests {
             .eval("print(\"hello\")")
             .expect("print should evaluate");
         assert!(output.contains("hello"), "unexpected output: {output}");
+    }
+
+    #[test]
+    fn lists_completion_identifiers() {
+        let mut engine = engine();
+        engine
+            .eval("let radius = 5 cm")
+            .expect("definition should evaluate");
+        let identifiers = engine.identifiers();
+        assert!(
+            identifiers.contains("unit|meter"),
+            "unexpected identifiers: {identifiers}"
+        );
+        assert!(
+            identifiers.contains("function|sin"),
+            "unexpected identifiers: {identifiers}"
+        );
+        assert!(
+            identifiers.contains("variable|radius"),
+            "unexpected identifiers: {identifiers}"
+        );
     }
 
     #[test]
